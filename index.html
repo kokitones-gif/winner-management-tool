@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>当選管理ツール</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Noto Sans JP', sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      min-height: 100vh;
+      color: #e5e7eb;
+      padding: 20px;
+    }
+    .container { max-width: 900px; margin: 0 auto; }
+    
+    header { text-align: center; padding: 30px 0; margin-bottom: 30px; }
+    h1 {
+      font-size: 2rem;
+      background: linear-gradient(90deg, #f43f5e, #fb923c);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 10px;
+    }
+    .subtitle { color: #94a3b8; font-size: 0.9rem; }
+    
+    .steps {
+      display: flex; justify-content: center; gap: 10px;
+      margin-bottom: 30px; flex-wrap: wrap;
+    }
+    .step {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 16px; background: rgba(71, 85, 105, 0.3);
+      border-radius: 30px; font-size: 0.85rem;
+      border: 1px solid transparent; transition: all 0.3s;
+    }
+    .step.active { background: rgba(244, 63, 94, 0.2); border-color: rgba(244, 63, 94, 0.5); }
+    .step.completed { background: rgba(34, 197, 94, 0.2); border-color: rgba(34, 197, 94, 0.5); }
+    .step-num {
+      width: 24px; height: 24px; border-radius: 50%;
+      background: #475569; display: flex; align-items: center;
+      justify-content: center; font-size: 0.75rem; font-weight: bold;
+    }
+    .step.active .step-num { background: #f43f5e; }
+    .step.completed .step-num { background: #22c55e; }
+    
+    .upload-section {
+      background: rgba(30, 41, 59, 0.5); border: 1px solid #334155;
+      border-radius: 16px; padding: 24px; margin-bottom: 20px;
+    }
+    .upload-section h2 {
+      font-size: 1.1rem; margin-bottom: 16px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .upload-area {
+      border: 2px dashed #475569; border-radius: 12px;
+      padding: 40px; text-align: center; cursor: pointer; transition: all 0.3s;
+    }
+    .upload-area:hover { border-color: #f43f5e; background: rgba(244, 63, 94, 0.05); }
+    .upload-area.dragover { border-color: #22c55e; background: rgba(34, 197, 94, 0.1); }
+    .upload-area.uploaded { border-color: #22c55e; border-style: solid; background: rgba(34, 197, 94, 0.1); }
+    .upload-icon { font-size: 3rem; margin-bottom: 10px; }
+    .upload-text { color: #94a3b8; margin-bottom: 8px; }
+    .upload-hint { color: #64748b; font-size: 0.8rem; }
+    .file-info { color: #22c55e; font-weight: 500; }
+    input[type="file"] { display: none; }
+    
+    .format-selector {
+      margin-top: 20px; padding: 16px;
+      background: rgba(51, 65, 85, 0.3); border-radius: 12px;
+    }
+    .format-selector h3 { font-size: 0.95rem; margin-bottom: 12px; color: #cbd5e1; }
+    .format-options { display: flex; gap: 12px; flex-wrap: wrap; }
+    .format-option {
+      flex: 1; min-width: 200px; padding: 16px;
+      border: 2px solid #475569; border-radius: 10px;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .format-option:hover { border-color: #64748b; }
+    .format-option.selected { border-color: #f43f5e; background: rgba(244, 63, 94, 0.1); }
+    .format-option h4 { font-size: 0.9rem; margin-bottom: 6px; }
+    .format-option p { font-size: 0.75rem; color: #94a3b8; }
+    
+    .column-mapping {
+      margin-top: 20px; padding: 16px;
+      background: rgba(51, 65, 85, 0.3); border-radius: 12px;
+    }
+    .column-mapping h3 { font-size: 0.95rem; margin-bottom: 12px; color: #cbd5e1; }
+    .mapping-row {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 10px; flex-wrap: wrap;
+    }
+    .mapping-label { min-width: 100px; font-size: 0.85rem; color: #94a3b8; }
+    .mapping-label.required::after { content: " *"; color: #f43f5e; }
+    select {
+      flex: 1; min-width: 150px; padding: 8px 12px;
+      border-radius: 8px; border: 1px solid #475569;
+      background: #1e293b; color: #e5e7eb; font-size: 0.9rem;
+    }
+    select:focus { outline: none; border-color: #f43f5e; }
+    
+    .stats {
+      display: flex; gap: 15px; justify-content: center;
+      margin-bottom: 25px; flex-wrap: wrap;
+    }
+    .stat-card {
+      padding: 16px 24px; border-radius: 12px;
+      text-align: center; min-width: 120px;
+    }
+    .stat-card.green { background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); }
+    .stat-card.yellow { background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.3); }
+    .stat-card.blue { background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); }
+    .stat-card.purple { background: rgba(168, 85, 247, 0.1); border: 1px solid rgba(168, 85, 247, 0.3); }
+    .stat-value { font-size: 1.8rem; font-weight: 700; }
+    .stat-card.green .stat-value { color: #4ade80; }
+    .stat-card.yellow .stat-value { color: #fbbf24; }
+    .stat-card.blue .stat-value { color: #60a5fa; }
+    .stat-card.purple .stat-value { color: #c084fc; }
+    .stat-card.gray { background: rgba(100, 116, 139, 0.1); border: 1px solid rgba(100, 116, 139, 0.3); }
+    .stat-card.gray .stat-value { color: #94a3b8; }
+    .stat-label { font-size: 0.75rem; color: #94a3b8; margin-top: 4px; }
+    
+    .filter-bar { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+    .filter-btn {
+      padding: 8px 16px; border-radius: 8px; border: none;
+      background: rgba(71, 85, 105, 0.5); color: #cbd5e1;
+      cursor: pointer; font-size: 0.85rem; transition: all 0.2s;
+    }
+    .filter-btn:hover { background: rgba(71, 85, 105, 0.8); }
+    .filter-btn.active { background: #f43f5e; color: white; }
+    .search-input {
+      flex: 1; min-width: 200px; padding: 8px 16px;
+      border-radius: 8px; border: 1px solid #475569;
+      background: rgba(71, 85, 105, 0.5); color: #e5e7eb; font-size: 0.9rem;
+    }
+    .search-input::placeholder { color: #64748b; }
+    .search-input:focus { outline: none; border-color: #f43f5e; }
+    
+    .customer-list { margin-bottom: 25px; }
+    .customer-card {
+      background: rgba(30, 41, 59, 0.5); border: 1px solid #334155;
+      border-radius: 12px; margin-bottom: 12px; overflow: hidden; transition: all 0.2s;
+    }
+    .customer-card:hover { border-color: #475569; }
+    .customer-card.confirmed { border-left: 4px solid #22c55e; }
+    .customer-card.processed { opacity: 0.6; border-left: 4px solid #64748b; }
+    .customer-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 14px 18px; background: rgba(30, 41, 59, 0.5);
+      border-bottom: 1px solid rgba(51, 65, 85, 0.5); flex-wrap: wrap; gap: 10px;
+    }
+    .customer-name { font-weight: 600; }
+    .customer-email { font-size: 0.8rem; color: #64748b; }
+    .badges { display: flex; gap: 8px; flex-wrap: wrap; }
+    .badge { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 500; }
+    .badge.count { background: rgba(244, 63, 94, 0.2); color: #fb7185; }
+    .badge.confirmed { background: rgba(34, 197, 94, 0.2); color: #4ade80; }
+    .badge.selected { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
+    .badge.processed-badge { background: rgba(100, 116, 139, 0.2); color: #94a3b8; }
+    
+    .process-action-btn {
+      padding: 4px 12px; border-radius: 6px; border: none;
+      font-size: 0.75rem; font-weight: 500; cursor: pointer;
+      transition: all 0.2s; margin-left: 10px;
+    }
+    .process-action-btn.to-processed {
+      background: rgba(100, 116, 139, 0.3); color: #cbd5e1;
+    }
+    .process-action-btn.to-processed:hover {
+      background: rgba(100, 116, 139, 0.5);
+    }
+    .process-action-btn.undo {
+      background: rgba(251, 191, 36, 0.3); color: #fbbf24;
+    }
+    .process-action-btn.undo:hover {
+      background: rgba(251, 191, 36, 0.5);
+    }
+    
+    .entries { padding: 12px; }
+    .entry {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px; border-radius: 8px; margin-bottom: 8px;
+      cursor: pointer; transition: all 0.2s; background: rgba(71, 85, 105, 0.2);
+    }
+    .entry:last-child { margin-bottom: 0; }
+    .entry:hover { background: rgba(71, 85, 105, 0.4); }
+    .entry.selected { background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.4); }
+    .entry input[type="checkbox"] { width: 20px; height: 20px; accent-color: #22c55e; cursor: pointer; }
+    .entry-info { flex: 1; }
+    .entry-item { font-size: 0.9rem; font-weight: 500; }
+    .entry-size { font-size: 0.8rem; color: #64748b; }
+    .check-mark { color: #4ade80; font-size: 0.85rem; }
+    
+    .export-section {
+      background: rgba(30, 41, 59, 0.5); border: 1px solid #334155;
+      border-radius: 12px; padding: 20px;
+    }
+    .export-section h3 { margin-bottom: 15px; font-size: 1rem; }
+    .export-buttons { display: flex; gap: 12px; flex-wrap: wrap; }
+    .btn {
+      padding: 10px 20px; border-radius: 8px; border: none;
+      font-size: 0.9rem; font-weight: 500; cursor: pointer; transition: all 0.2s;
+    }
+    .btn-primary { background: linear-gradient(90deg, #f43f5e, #fb923c); color: white; }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-secondary { background: #475569; color: #e5e7eb; }
+    .btn-secondary:hover { background: #64748b; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    
+    .warning {
+      margin-top: 15px; padding: 12px;
+      background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.3);
+      border-radius: 8px; color: #fbbf24; font-size: 0.85rem;
+    }
+    .info {
+      margin-top: 15px; padding: 12px;
+      background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3);
+      border-radius: 8px; color: #60a5fa; font-size: 0.85rem;
+    }
+    
+    .empty-state { text-align: center; padding: 60px 20px; color: #64748b; }
+    .hidden { display: none !important; }
+    .process-btn { width: 100%; padding: 14px; margin-top: 20px; }
+    
+    .preview-table {
+      margin-top: 15px; overflow-x: auto;
+      background: rgba(15, 23, 42, 0.5); border-radius: 8px;
+    }
+    .preview-table table {
+      width: 100%; border-collapse: collapse; font-size: 0.8rem;
+    }
+    .preview-table th, .preview-table td {
+      padding: 8px 12px; text-align: left; border-bottom: 1px solid #334155;
+    }
+    .preview-table th { background: rgba(51, 65, 85, 0.5); color: #94a3b8; }
+    .preview-table td { color: #cbd5e1; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🎯 当選管理ツール</h1>
+      <p class="subtitle">重複顧客の当選アイテムを管理・選択してCSV出力（複数選択対応）</p>
+    </header>
+
+    <div class="steps">
+      <div class="step active" id="step1"><span class="step-num">1</span><span>データ読込</span></div>
+      <div class="step" id="step2"><span class="step-num">2</span><span>確定当選者</span></div>
+      <div class="step" id="step3"><span class="step-num">3</span><span>選択・出力</span></div>
+    </div>
+
+    <!-- Step 1: Upload Entry Data -->
+    <div class="upload-section" id="entryUploadSection">
+      <h2>📁 応募/当選データCSVをアップロード</h2>
+      <div class="upload-area" id="entryUploadArea">
+        <div class="upload-icon">📄</div>
+        <div class="upload-text">クリックまたはドラッグ＆ドロップ</div>
+        <div class="upload-hint">CSV / TSVファイル対応（標準形式・スプレッドシート形式）</div>
+      </div>
+      <input type="file" id="entryFileInput" accept=".csv,.tsv,.txt">
+      
+      <div class="format-selector hidden" id="formatSelector">
+        <h3>📋 データ形式を選択</h3>
+        <div class="format-options">
+          <div class="format-option" data-format="standard">
+            <h4>📝 標準CSV形式</h4>
+            <p>1行1レコード（名前、メール、商品、サイズ等の列）</p>
+          </div>
+          <div class="format-option" data-format="spreadsheet">
+            <h4>📊 スプレッドシート形式</h4>
+            <p>商品・サイズが横並び、名前・メールが縦に並ぶ形式</p>
+          </div>
+        </div>
+        <div class="info" id="formatDetected"></div>
+      </div>
+      
+      <div class="column-mapping hidden" id="columnMapping">
+        <h3>📋 列の対応付け</h3>
+        <div class="mapping-row">
+          <span class="mapping-label required">名前（姓）</span>
+          <select id="colLastName"></select>
+        </div>
+        <div class="mapping-row">
+          <span class="mapping-label">名前（名）</span>
+          <select id="colFirstName"></select>
+        </div>
+        <div class="mapping-row">
+          <span class="mapping-label required">メール</span>
+          <select id="colEmail"></select>
+        </div>
+        <div class="mapping-row">
+          <span class="mapping-label required">アイテム</span>
+          <select id="colItem"></select>
+        </div>
+        <div class="mapping-row">
+          <span class="mapping-label">サイズ</span>
+          <select id="colSize"></select>
+        </div>
+        <div class="preview-table" id="previewTable"></div>
+      </div>
+      
+      <button class="btn btn-primary process-btn hidden" id="processEntryBtn">データを処理する</button>
+    </div>
+
+    <!-- Step 2: Upload Confirmed Winners (Optional) -->
+    <div class="upload-section hidden" id="confirmedUploadSection">
+      <h2>📁 確定当選者CSVをアップロード（任意）</h2>
+      <div class="upload-area" id="confirmedUploadArea">
+        <div class="upload-icon">📄</div>
+        <div class="upload-text">クリックまたはドラッグ＆ドロップ</div>
+        <div class="upload-hint">姓・名の列を含むCSV（スキップ可）</div>
+      </div>
+      <input type="file" id="confirmedFileInput" accept=".csv,.tsv,.txt">
+      
+      <div class="column-mapping hidden" id="confirmedColumnMapping">
+        <h3>📋 列の対応付け</h3>
+        <div class="mapping-row">
+          <span class="mapping-label required">姓</span>
+          <select id="confirmedColLastName"></select>
+        </div>
+        <div class="mapping-row">
+          <span class="mapping-label">名</span>
+          <select id="confirmedColFirstName"></select>
+        </div>
+        <button class="btn btn-primary process-btn" id="processConfirmedBtn">確定当選者を照合する</button>
+      </div>
+      
+      <button class="btn btn-secondary process-btn" id="skipConfirmedBtn">スキップして次へ</button>
+    </div>
+
+    <!-- Step 3: Selection & Export -->
+    <div class="hidden" id="selectionSection">
+      <div class="stats">
+        <div class="stat-card purple">
+          <div class="stat-value" id="statTotal">0</div>
+          <div class="stat-label">重複顧客</div>
+        </div>
+        <div class="stat-card green">
+          <div class="stat-value" id="statConfirmed">0</div>
+          <div class="stat-label">確定当選済み</div>
+        </div>
+        <div class="stat-card yellow">
+          <div class="stat-value" id="statPending">0</div>
+          <div class="stat-label">未確定</div>
+        </div>
+        <div class="stat-card blue">
+          <div class="stat-value" id="statSelected">0</div>
+          <div class="stat-label">選択済みアイテム</div>
+        </div>
+        <div class="stat-card gray">
+          <div class="stat-value" id="statProcessed">0</div>
+          <div class="stat-label">処理済み</div>
+        </div>
+      </div>
+
+      <div class="filter-bar">
+        <button class="filter-btn active" data-filter="all">すべて</button>
+        <button class="filter-btn" data-filter="confirmed">確定済み</button>
+        <button class="filter-btn" data-filter="pending">未確定</button>
+        <button class="filter-btn" data-filter="processed">処理済み</button>
+        <input type="text" class="search-input" id="searchInput" placeholder="🔍 名前で検索...">
+      </div>
+
+      <div class="customer-list" id="customerList"></div>
+
+      <div class="export-section">
+        <h3>📥 エクスポート</h3>
+        <div class="export-buttons">
+          <button class="btn btn-primary" id="exportSelectedBtn">選択した当選者をCSV出力</button>
+          <button class="btn btn-secondary" id="exportProcessedBtn">処理済みをCSV出力</button>
+          <button class="btn btn-secondary" id="exportAllBtn">全データをCSV出力</button>
+        </div>
+        <div class="warning hidden" id="exportWarning">
+          ⚠️ まだアイテムが選択されていません。当選させるアイテムにチェックを入れてください。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // State
+    let rawData = [];
+    let rawHeaders = [];
+    let selectedFormat = null;
+    let entries = [];
+    let duplicateCustomers = [];
+    let confirmedWinners = [];
+    let selections = {};
+    let processed = new Set(); // 処理済み顧客名
+    let currentFilter = 'all';
+
+    // Parse CSV
+    function parseCSV(text) {
+      const lines = text.trim().split(/\r?\n/);
+      const delimiter = text.includes('\t') ? '\t' : ',';
+      return lines.map(line => {
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          if (char === '"') {
+            inQuotes = !inQuotes;
+          } else if (char === delimiter && !inQuotes) {
+            result.push(current.trim());
+            current = '';
+          } else {
+            current += char;
+          }
+        }
+        result.push(current.trim());
+        return result;
+      });
+    }
+
+    // Detect format
+    function detectFormat(rows) {
+      if (rows.length < 3) return 'standard';
+      
+      // スプレッドシート形式の特徴をチェック
+      const row0 = rows[0];
+      const row1 = rows[1];
+      const row2 = rows[2];
+      
+      // 1行目に商品名っぽいもの、2行目にサイズっぽいものがあるか
+      const hasProductRow = row0.some(c => c && (c.includes(')') || c.includes('Coat') || c.includes('Logo') || c.includes('Sweat')));
+      const hasSizeRow = row1.some(c => c && (c.includes('サイズ') || c === 'M' || c === 'L' || c === 'XL' || c === 'S'));
+      const hasEmailIn3rdRow = row2.some(c => c && c.includes('@'));
+      const hasNameIn3rdRow = row2.some(c => c && /[\u3040-\u9fff]/.test(c));
+      
+      if (hasProductRow && hasSizeRow && (hasEmailIn3rdRow || hasNameIn3rdRow)) {
+        return 'spreadsheet';
+      }
+      return 'standard';
+    }
+
+    // Parse spreadsheet format
+    function parseSpreadsheetFormat(rows) {
+      const productsRow = rows[0];
+      const sizesRow = rows[1];
+      
+      // 列情報を構築
+      const colInfo = {};
+      let currentProduct = '';
+      for (let i = 0; i < productsRow.length; i++) {
+        if (productsRow[i] && productsRow[i].trim()) {
+          currentProduct = productsRow[i].trim();
+        }
+        if (i < sizesRow.length && sizesRow[i] && sizesRow[i].trim()) {
+          colInfo[i] = { product: currentProduct, size: sizesRow[i].trim() };
+        }
+      }
+      
+      // 4行ごとに名前・メールを抽出
+      const entries = [];
+      let rowIdx = 2;
+      while (rowIdx < rows.length - 1) {
+        const nameRow = rows[rowIdx] || [];
+        const emailRow = rows[rowIdx + 1] || [];
+        
+        for (const [colIdx, colData] of Object.entries(colInfo)) {
+          const idx = parseInt(colIdx);
+          if (idx < nameRow.length && nameRow[idx] && nameRow[idx].trim()) {
+            const name = nameRow[idx].trim();
+            const email = idx < emailRow.length && emailRow[idx] ? emailRow[idx].trim() : '';
+            
+            // 数字だけの行をスキップ
+            if (/^[\d.\-]+$/.test(name)) continue;
+            // メールがないものをスキップ
+            if (!email.includes('@')) continue;
+            
+            entries.push({
+              name,
+              email,
+              item: colData.product,
+              size: colData.size
+            });
+          }
+        }
+        rowIdx += 4;
+      }
+      return entries;
+    }
+
+    // Parse standard format
+    function parseStandardFormat(rows, colMap) {
+      const entries = [];
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const lastName = colMap.lastName !== '' ? (row[colMap.lastName] || '').trim() : '';
+        const firstName = colMap.firstName !== '' ? (row[colMap.firstName] || '').trim() : '';
+        const name = firstName ? `${lastName} ${firstName}` : lastName;
+        const email = colMap.email !== '' ? (row[colMap.email] || '').trim() : '';
+        const item = colMap.item !== '' ? (row[colMap.item] || '').trim() : '';
+        const size = colMap.size !== '' ? (row[colMap.size] || '').trim() : '';
+        
+        if (name && email.includes('@')) {
+          entries.push({ name, email, item, size });
+        }
+      }
+      return entries;
+    }
+
+    // Find duplicates
+    function findDuplicates(entries) {
+      const groups = {};
+      entries.forEach(e => {
+        if (!groups[e.name]) {
+          groups[e.name] = { name: e.name, email: e.email, entries: [], isConfirmed: false };
+        }
+        groups[e.name].entries.push(e);
+      });
+      
+      return Object.values(groups)
+        .filter(g => g.entries.length >= 2)
+        .map(g => ({ ...g, count: g.entries.length }));
+    }
+
+    // Populate select
+    function populateSelect(selectId, headers, defaultMatch = []) {
+      const select = document.getElementById(selectId);
+      select.innerHTML = '<option value="">-- 選択 --</option>';
+      headers.forEach((h, i) => {
+        const option = document.createElement('option');
+        option.value = i;
+        option.textContent = h;
+        if (defaultMatch.some(m => h.toLowerCase().includes(m.toLowerCase()))) {
+          option.selected = true;
+        }
+        select.appendChild(option);
+      });
+    }
+
+    // Handle entry file
+    function handleEntryFile(file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        rawData = parseCSV(e.target.result);
+        rawHeaders = rawData[0];
+        
+        document.getElementById('entryUploadArea').classList.add('uploaded');
+        document.getElementById('entryUploadArea').innerHTML = `
+          <div class="upload-icon">✅</div>
+          <div class="file-info">${file.name}</div>
+          <div class="upload-hint">${rawData.length - 1}行のデータを読み込みました</div>
+        `;
+        
+        // Detect format
+        const detected = detectFormat(rawData);
+        document.getElementById('formatSelector').classList.remove('hidden');
+        document.getElementById('formatDetected').textContent = 
+          `🔍 自動検出: ${detected === 'spreadsheet' ? 'スプレッドシート形式' : '標準CSV形式'}`;
+        
+        // Select detected format
+        document.querySelectorAll('.format-option').forEach(opt => {
+          opt.classList.toggle('selected', opt.dataset.format === detected);
+        });
+        selectedFormat = detected;
+        
+        if (detected === 'standard') {
+          showColumnMapping();
+        } else {
+          document.getElementById('columnMapping').classList.add('hidden');
+        }
+        
+        document.getElementById('processEntryBtn').classList.remove('hidden');
+      };
+      reader.readAsText(file);
+    }
+
+    // Show column mapping for standard format
+    function showColumnMapping() {
+      populateSelect('colLastName', rawHeaders, ['姓', 'lastname', 'last_name', '苗字', '氏']);
+      populateSelect('colFirstName', rawHeaders, ['名', 'firstname', 'first_name']);
+      populateSelect('colEmail', rawHeaders, ['メール', 'email', 'mail']);
+      populateSelect('colItem', rawHeaders, ['商品', 'アイテム', 'item', 'product']);
+      populateSelect('colSize', rawHeaders, ['サイズ', 'size']);
+      
+      // Preview
+      const preview = rawData.slice(0, 4);
+      document.getElementById('previewTable').innerHTML = `
+        <table>
+          <tr>${rawHeaders.map(h => `<th>${h}</th>`).join('')}</tr>
+          ${preview.slice(1).map(row => `<tr>${row.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}
+        </table>
+      `;
+      
+      document.getElementById('columnMapping').classList.remove('hidden');
+    }
+
+    // Format option click
+    document.querySelectorAll('.format-option').forEach(opt => {
+      opt.addEventListener('click', () => {
+        document.querySelectorAll('.format-option').forEach(o => o.classList.remove('selected'));
+        opt.classList.add('selected');
+        selectedFormat = opt.dataset.format;
+        
+        if (selectedFormat === 'standard') {
+          showColumnMapping();
+        } else {
+          document.getElementById('columnMapping').classList.add('hidden');
+        }
+      });
+    });
+
+    // Process entry data
+    document.getElementById('processEntryBtn').addEventListener('click', () => {
+      if (selectedFormat === 'spreadsheet') {
+        entries = parseSpreadsheetFormat(rawData);
+      } else {
+        const colMap = {
+          lastName: document.getElementById('colLastName').value,
+          firstName: document.getElementById('colFirstName').value,
+          email: document.getElementById('colEmail').value,
+          item: document.getElementById('colItem').value,
+          size: document.getElementById('colSize').value
+        };
+        
+        if (!colMap.lastName || !colMap.email || !colMap.item) {
+          alert('必須項目（名前（姓）、メール、アイテム）を選択してください');
+          return;
+        }
+        entries = parseStandardFormat(rawData, colMap);
+      }
+      
+      duplicateCustomers = findDuplicates(entries);
+      
+      if (duplicateCustomers.length === 0) {
+        alert(`重複顧客が見つかりませんでした。\n全${entries.length}件の応募は全てユニークです。`);
+        return;
+      }
+      
+      document.getElementById('entryUploadSection').classList.add('hidden');
+      document.getElementById('confirmedUploadSection').classList.remove('hidden');
+      updateSteps(2);
+    });
+
+    // Handle confirmed file
+    function handleConfirmedFile(file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const parsed = parseCSV(e.target.result);
+        const headers = parsed[0];
+        
+        document.getElementById('confirmedUploadArea').classList.add('uploaded');
+        document.getElementById('confirmedUploadArea').innerHTML = `
+          <div class="upload-icon">✅</div>
+          <div class="file-info">${file.name}</div>
+          <div class="upload-hint">${parsed.length - 1}件のデータを読み込みました</div>
+        `;
+        
+        populateSelect('confirmedColLastName', headers, ['姓', 'lastname', '氏']);
+        populateSelect('confirmedColFirstName', headers, ['名', 'firstname']);
+        
+        document.getElementById('confirmedColumnMapping').classList.remove('hidden');
+        document.getElementById('skipConfirmedBtn').classList.add('hidden');
+        
+        document.getElementById('confirmedUploadArea').dataset.data = JSON.stringify(parsed);
+      };
+      reader.readAsText(file);
+    }
+
+    // Process confirmed winners
+    document.getElementById('processConfirmedBtn').addEventListener('click', () => {
+      const parsed = JSON.parse(document.getElementById('confirmedUploadArea').dataset.data);
+      const colLastName = document.getElementById('confirmedColLastName').value;
+      const colFirstName = document.getElementById('confirmedColFirstName').value;
+      
+      if (!colLastName) {
+        alert('姓の列を選択してください');
+        return;
+      }
+      
+      confirmedWinners = parsed.slice(1).map(row => {
+        const lastName = row[colLastName] || '';
+        const firstName = colFirstName ? (row[colFirstName] || '') : '';
+        return firstName ? `${lastName} ${firstName}` : lastName;
+      }).filter(n => n);
+      
+      duplicateCustomers.forEach(c => {
+        c.isConfirmed = confirmedWinners.includes(c.name);
+      });
+      
+      showSelectionSection();
+    });
+
+    // Skip confirmed
+    document.getElementById('skipConfirmedBtn').addEventListener('click', showSelectionSection);
+
+    function showSelectionSection() {
+      document.getElementById('confirmedUploadSection').classList.add('hidden');
+      document.getElementById('selectionSection').classList.remove('hidden');
+      updateSteps(3);
+      renderCustomers();
+      updateStats();
+    }
+
+    function updateSteps(active) {
+      for (let i = 1; i <= 3; i++) {
+        const step = document.getElementById(`step${i}`);
+        step.classList.remove('active', 'completed');
+        if (i < active) step.classList.add('completed');
+        if (i === active) step.classList.add('active');
+      }
+    }
+
+    function renderCustomers() {
+      const search = document.getElementById('searchInput').value.toLowerCase();
+      let filtered = duplicateCustomers;
+      
+      if (currentFilter === 'confirmed') filtered = filtered.filter(c => c.isConfirmed && !processed.has(c.name));
+      else if (currentFilter === 'pending') filtered = filtered.filter(c => !c.isConfirmed && !processed.has(c.name));
+      else if (currentFilter === 'processed') filtered = filtered.filter(c => processed.has(c.name));
+      else filtered = filtered.filter(c => !processed.has(c.name)); // 'all' は処理済みを除く
+      
+      if (search) filtered = filtered.filter(c => c.name.toLowerCase().includes(search));
+      
+      if (filtered.length === 0) {
+        document.getElementById('customerList').innerHTML = '<div class="empty-state">該当する顧客が見つかりません</div>';
+        return;
+      }
+      
+      document.getElementById('customerList').innerHTML = filtered.map(customer => {
+        const selectedCount = selections[customer.name]?.size || 0;
+        const isProcessed = processed.has(customer.name);
+        return `
+          <div class="customer-card ${customer.isConfirmed ? 'confirmed' : ''} ${isProcessed ? 'processed' : ''}">
+            <div class="customer-header">
+              <div style="display: flex; align-items: center;">
+                <div>
+                  <div class="customer-name">${customer.name}</div>
+                  <div class="customer-email">${customer.email}</div>
+                </div>
+                ${isProcessed 
+                  ? `<button class="process-action-btn undo" data-action="undo" data-customer="${customer.name}">↩ 戻す</button>`
+                  : `<button class="process-action-btn to-processed" data-action="process" data-customer="${customer.name}">✓ 処理済み</button>`
+                }
+              </div>
+              <div class="badges">
+                <span class="badge count">${customer.count}件当選</span>
+                ${selectedCount > 0 ? `<span class="badge selected">${selectedCount}件選択中</span>` : ''}
+                ${customer.isConfirmed ? '<span class="badge confirmed">確定当選済み</span>' : ''}
+                ${isProcessed ? '<span class="badge processed-badge">処理済み</span>' : ''}
+              </div>
+            </div>
+            <div class="entries">
+              ${customer.entries.map((entry, idx) => {
+                const isSelected = selections[customer.name]?.has(idx);
+                return `
+                  <div class="entry ${isSelected ? 'selected' : ''}" data-customer="${customer.name}" data-index="${idx}">
+                    <input type="checkbox" ${isSelected ? 'checked' : ''}>
+                    <div class="entry-info">
+                      <div class="entry-item">${entry.item}</div>
+                      ${entry.size ? `<div class="entry-size">サイズ: ${entry.size}</div>` : ''}
+                    </div>
+                    ${isSelected ? '<span class="check-mark">✓ 選択済</span>' : ''}
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function updateStats() {
+      const processedCount = processed.size;
+      const confirmed = duplicateCustomers.filter(c => c.isConfirmed && !processed.has(c.name)).length;
+      const pending = duplicateCustomers.filter(c => !c.isConfirmed && !processed.has(c.name)).length;
+      const unprocessedTotal = duplicateCustomers.length - processedCount;
+      let selectedCount = 0;
+      Object.values(selections).forEach(set => selectedCount += set.size);
+      
+      document.getElementById('statTotal').textContent = unprocessedTotal;
+      document.getElementById('statConfirmed').textContent = confirmed;
+      document.getElementById('statPending').textContent = pending;
+      document.getElementById('statSelected').textContent = selectedCount;
+      document.getElementById('statProcessed').textContent = processedCount;
+      
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        const filter = btn.dataset.filter;
+        let count = unprocessedTotal;
+        if (filter === 'confirmed') count = confirmed;
+        else if (filter === 'pending') count = pending;
+        else if (filter === 'processed') count = processedCount;
+        btn.textContent = `${filter === 'all' ? 'すべて' : filter === 'confirmed' ? '確定済み' : filter === 'pending' ? '未確定' : '処理済み'} (${count})`;
+      });
+      
+      document.getElementById('exportWarning').classList.toggle('hidden', selectedCount > 0);
+    }
+
+    // Toggle selection
+    document.getElementById('customerList').addEventListener('click', (e) => {
+      // 処理済みボタンのクリック
+      const actionBtn = e.target.closest('.process-action-btn');
+      if (actionBtn) {
+        const customer = actionBtn.dataset.customer;
+        const action = actionBtn.dataset.action;
+        
+        if (action === 'process') {
+          processed.add(customer);
+        } else if (action === 'undo') {
+          processed.delete(customer);
+        }
+        
+        renderCustomers();
+        updateStats();
+        return;
+      }
+      
+      // エントリーのクリック
+      const entry = e.target.closest('.entry');
+      if (!entry) return;
+      
+      const customer = entry.dataset.customer;
+      const index = parseInt(entry.dataset.index);
+      
+      if (!selections[customer]) selections[customer] = new Set();
+      
+      if (selections[customer].has(index)) {
+        selections[customer].delete(index);
+      } else {
+        selections[customer].add(index);
+      }
+      
+      renderCustomers();
+      updateStats();
+    });
+
+    // Filter buttons
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentFilter = btn.dataset.filter;
+        renderCustomers();
+      });
+    });
+
+    // Search
+    document.getElementById('searchInput').addEventListener('input', renderCustomers);
+
+    // Export CSV
+    function exportCSV(mode) {
+      const rows = [['名前', 'メール', 'アイテム', 'サイズ', '確定当選済み', '選択', '処理済み']];
+      
+      duplicateCustomers.forEach(customer => {
+        const customerSelections = selections[customer.name] || new Set();
+        const isProcessed = processed.has(customer.name);
+        
+        // モードによるフィルタリング
+        if (mode === 'selected') {
+          if (customerSelections.size === 0) return;
+        } else if (mode === 'processed') {
+          if (!isProcessed) return;
+        }
+        
+        customer.entries.forEach((entry, idx) => {
+          const isSelected = customerSelections.has(idx);
+          if (mode === 'selected' && !isSelected) return;
+          rows.push([
+            customer.name,
+            entry.email,
+            entry.item,
+            entry.size || '',
+            customer.isConfirmed ? '○' : '',
+            isSelected ? '○' : '',
+            isProcessed ? '○' : ''
+          ]);
+        });
+      });
+      
+      const filename = mode === 'selected' ? '当選者_選択分.csv' : mode === 'processed' ? '当選者_処理済み.csv' : '重複顧客_全データ.csv';
+      
+      const bom = '\uFEFF';
+      const csv = rows.map(row => row.map(cell => `"${(cell || '').replace(/"/g, '""')}"`).join(',')).join('\n');
+      const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    document.getElementById('exportSelectedBtn').addEventListener('click', () => exportCSV('selected'));
+    document.getElementById('exportProcessedBtn').addEventListener('click', () => exportCSV('processed'));
+    document.getElementById('exportAllBtn').addEventListener('click', () => exportCSV('all'));
+
+    // File upload handlers
+    const entryUploadArea = document.getElementById('entryUploadArea');
+    const entryFileInput = document.getElementById('entryFileInput');
+    entryUploadArea.addEventListener('click', () => entryFileInput.click());
+    entryFileInput.addEventListener('change', (e) => { if (e.target.files[0]) handleEntryFile(e.target.files[0]); });
+
+    const confirmedUploadArea = document.getElementById('confirmedUploadArea');
+    const confirmedFileInput = document.getElementById('confirmedFileInput');
+    confirmedUploadArea.addEventListener('click', () => confirmedFileInput.click());
+    confirmedFileInput.addEventListener('change', (e) => { if (e.target.files[0]) handleConfirmedFile(e.target.files[0]); });
+
+    // Drag & drop
+    [entryUploadArea, confirmedUploadArea].forEach((area, idx) => {
+      area.addEventListener('dragover', (e) => { e.preventDefault(); area.classList.add('dragover'); });
+      area.addEventListener('dragleave', () => { area.classList.remove('dragover'); });
+      area.addEventListener('drop', (e) => {
+        e.preventDefault();
+        area.classList.remove('dragover');
+        const file = e.dataTransfer.files[0];
+        if (file) {
+          if (idx === 0) handleEntryFile(file);
+          else handleConfirmedFile(file);
+        }
+      });
+    });
+  </script>
+</body>
+</html>
