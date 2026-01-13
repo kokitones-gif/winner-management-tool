@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -131,6 +132,14 @@
     }
     .filter-btn:hover { background: rgba(71, 85, 105, 0.8); }
     .filter-btn.active { background: #f43f5e; color: white; }
+    .sort-btn {
+      padding: 8px 16px; border-radius: 8px; border: 1px solid #475569;
+      background: rgba(71, 85, 105, 0.3); color: #cbd5e1;
+      cursor: pointer; font-size: 0.85rem; transition: all 0.2s;
+      margin-left: auto;
+    }
+    .sort-btn:hover { background: rgba(71, 85, 105, 0.6); }
+    .sort-btn.active { background: rgba(168, 85, 247, 0.3); border-color: #a855f7; color: #c084fc; }
     .search-input {
       flex: 1; min-width: 200px; padding: 8px 16px;
       border-radius: 8px; border: 1px solid #475569;
@@ -222,6 +231,43 @@
     }
     
     .empty-state { text-align: center; padding: 60px 20px; color: #64748b; }
+    
+    .item-analysis {
+      background: rgba(30, 41, 59, 0.5); border: 1px solid #334155;
+      border-radius: 12px; padding: 20px; margin-bottom: 20px;
+    }
+    .item-analysis h3 { margin-bottom: 15px; font-size: 1rem; display: flex; align-items: center; gap: 10px; }
+    .item-analysis-toggle {
+      padding: 6px 12px; border-radius: 6px; border: none;
+      background: rgba(168, 85, 247, 0.2); color: #c084fc;
+      cursor: pointer; font-size: 0.8rem; transition: all 0.2s;
+    }
+    .item-analysis-toggle:hover { background: rgba(168, 85, 247, 0.4); }
+    .item-list { display: flex; flex-direction: column; gap: 8px; }
+    .item-row {
+      display: flex; align-items: center; gap: 12px; padding: 12px;
+      background: rgba(51, 65, 85, 0.3); border-radius: 8px;
+    }
+    .item-rank {
+      width: 28px; height: 28px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.8rem; font-weight: bold;
+    }
+    .item-rank.gold { background: rgba(251, 191, 36, 0.3); color: #fbbf24; }
+    .item-rank.silver { background: rgba(156, 163, 175, 0.3); color: #9ca3af; }
+    .item-rank.bronze { background: rgba(180, 83, 9, 0.3); color: #d97706; }
+    .item-rank.normal { background: rgba(71, 85, 105, 0.3); color: #94a3b8; }
+    .item-name { flex: 1; font-size: 0.9rem; }
+    .item-count {
+      padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 500;
+      background: rgba(244, 63, 94, 0.2); color: #fb7185;
+    }
+    .item-bar {
+      width: 100px; height: 8px; background: rgba(71, 85, 105, 0.5);
+      border-radius: 4px; overflow: hidden;
+    }
+    .item-bar-fill { height: 100%; background: linear-gradient(90deg, #f43f5e, #fb923c); border-radius: 4px; }
+    
     .hidden { display: none !important; }
     .process-btn { width: 100%; padding: 14px; margin-top: 20px; }
     
@@ -356,11 +402,17 @@
         </div>
       </div>
 
+      <div class="item-analysis">
+        <h3>📦 アイテム別 重複当選者数 <button class="item-analysis-toggle" id="toggleItemAnalysis">表示</button></h3>
+        <div class="item-list hidden" id="itemList"></div>
+      </div>
+
       <div class="filter-bar">
         <button class="filter-btn active" data-filter="all">すべて</button>
         <button class="filter-btn" data-filter="confirmed">確定済み</button>
         <button class="filter-btn" data-filter="pending">未確定</button>
         <button class="filter-btn" data-filter="processed">処理済み</button>
+        <button class="sort-btn" id="sortBtn">📊 当選数が多い順</button>
         <input type="text" class="search-input" id="searchInput" placeholder="🔍 名前で検索...">
       </div>
 
@@ -389,8 +441,9 @@
     let duplicateCustomers = [];
     let confirmedWinners = [];
     let selections = {};
-    let processed = new Set(); // 処理済み顧客名
+    let processed = new Set();
     let currentFilter = 'all';
+    let sortByCount = false;
 
     // Parse CSV
     function parseCSV(text) {
@@ -419,18 +472,13 @@
     // Detect format
     function detectFormat(rows) {
       if (rows.length < 3) return 'standard';
-      
-      // スプレッドシート形式の特徴をチェック
       const row0 = rows[0];
       const row1 = rows[1];
       const row2 = rows[2];
-      
-      // 1行目に商品名っぽいもの、2行目にサイズっぽいものがあるか
       const hasProductRow = row0.some(c => c && (c.includes(')') || c.includes('Coat') || c.includes('Logo') || c.includes('Sweat')));
       const hasSizeRow = row1.some(c => c && (c.includes('サイズ') || c === 'M' || c === 'L' || c === 'XL' || c === 'S'));
       const hasEmailIn3rdRow = row2.some(c => c && c.includes('@'));
       const hasNameIn3rdRow = row2.some(c => c && /[\u3040-\u9fff]/.test(c));
-      
       if (hasProductRow && hasSizeRow && (hasEmailIn3rdRow || hasNameIn3rdRow)) {
         return 'spreadsheet';
       }
@@ -441,8 +489,6 @@
     function parseSpreadsheetFormat(rows) {
       const productsRow = rows[0];
       const sizesRow = rows[1];
-      
-      // 列情報を構築
       const colInfo = {};
       let currentProduct = '';
       for (let i = 0; i < productsRow.length; i++) {
@@ -453,25 +499,18 @@
           colInfo[i] = { product: currentProduct, size: sizesRow[i].trim() };
         }
       }
-      
-      // 4行ごとに名前・メールを抽出
       const entries = [];
       let rowIdx = 2;
       while (rowIdx < rows.length - 1) {
         const nameRow = rows[rowIdx] || [];
         const emailRow = rows[rowIdx + 1] || [];
-        
         for (const [colIdx, colData] of Object.entries(colInfo)) {
           const idx = parseInt(colIdx);
           if (idx < nameRow.length && nameRow[idx] && nameRow[idx].trim()) {
             const name = nameRow[idx].trim();
             const email = idx < emailRow.length && emailRow[idx] ? emailRow[idx].trim() : '';
-            
-            // 数字だけの行をスキップ
             if (/^[\d.\-]+$/.test(name)) continue;
-            // メールがないものをスキップ
             if (!email.includes('@')) continue;
-            
             entries.push({
               name,
               email,
@@ -496,7 +535,6 @@
         const email = colMap.email !== '' ? (row[colMap.email] || '').trim() : '';
         const item = colMap.item !== '' ? (row[colMap.item] || '').trim() : '';
         const size = colMap.size !== '' ? (row[colMap.size] || '').trim() : '';
-        
         if (name && email.includes('@')) {
           entries.push({ name, email, item, size });
         }
@@ -513,7 +551,6 @@
         }
         groups[e.name].entries.push(e);
       });
-      
       return Object.values(groups)
         .filter(g => g.entries.length >= 2)
         .map(g => ({ ...g, count: g.entries.length }));
@@ -540,32 +577,25 @@
       reader.onload = (e) => {
         rawData = parseCSV(e.target.result);
         rawHeaders = rawData[0];
-        
         document.getElementById('entryUploadArea').classList.add('uploaded');
         document.getElementById('entryUploadArea').innerHTML = `
           <div class="upload-icon">✅</div>
           <div class="file-info">${file.name}</div>
           <div class="upload-hint">${rawData.length - 1}行のデータを読み込みました</div>
         `;
-        
-        // Detect format
         const detected = detectFormat(rawData);
         document.getElementById('formatSelector').classList.remove('hidden');
         document.getElementById('formatDetected').textContent = 
           `🔍 自動検出: ${detected === 'spreadsheet' ? 'スプレッドシート形式' : '標準CSV形式'}`;
-        
-        // Select detected format
         document.querySelectorAll('.format-option').forEach(opt => {
           opt.classList.toggle('selected', opt.dataset.format === detected);
         });
         selectedFormat = detected;
-        
         if (detected === 'standard') {
           showColumnMapping();
         } else {
           document.getElementById('columnMapping').classList.add('hidden');
         }
-        
         document.getElementById('processEntryBtn').classList.remove('hidden');
       };
       reader.readAsText(file);
@@ -578,8 +608,6 @@
       populateSelect('colEmail', rawHeaders, ['メール', 'email', 'mail']);
       populateSelect('colItem', rawHeaders, ['商品', 'アイテム', 'item', 'product']);
       populateSelect('colSize', rawHeaders, ['サイズ', 'size']);
-      
-      // Preview
       const preview = rawData.slice(0, 4);
       document.getElementById('previewTable').innerHTML = `
         <table>
@@ -587,7 +615,6 @@
           ${preview.slice(1).map(row => `<tr>${row.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}
         </table>
       `;
-      
       document.getElementById('columnMapping').classList.remove('hidden');
     }
 
@@ -597,7 +624,6 @@
         document.querySelectorAll('.format-option').forEach(o => o.classList.remove('selected'));
         opt.classList.add('selected');
         selectedFormat = opt.dataset.format;
-        
         if (selectedFormat === 'standard') {
           showColumnMapping();
         } else {
@@ -618,21 +644,17 @@
           item: document.getElementById('colItem').value,
           size: document.getElementById('colSize').value
         };
-        
         if (!colMap.lastName || !colMap.email || !colMap.item) {
           alert('必須項目（名前（姓）、メール、アイテム）を選択してください');
           return;
         }
         entries = parseStandardFormat(rawData, colMap);
       }
-      
       duplicateCustomers = findDuplicates(entries);
-      
       if (duplicateCustomers.length === 0) {
         alert(`重複顧客が見つかりませんでした。\n全${entries.length}件の応募は全てユニークです。`);
         return;
       }
-      
       document.getElementById('entryUploadSection').classList.add('hidden');
       document.getElementById('confirmedUploadSection').classList.remove('hidden');
       updateSteps(2);
@@ -644,20 +666,16 @@
       reader.onload = (e) => {
         const parsed = parseCSV(e.target.result);
         const headers = parsed[0];
-        
         document.getElementById('confirmedUploadArea').classList.add('uploaded');
         document.getElementById('confirmedUploadArea').innerHTML = `
           <div class="upload-icon">✅</div>
           <div class="file-info">${file.name}</div>
           <div class="upload-hint">${parsed.length - 1}件のデータを読み込みました</div>
         `;
-        
         populateSelect('confirmedColLastName', headers, ['姓', 'lastname', '氏']);
         populateSelect('confirmedColFirstName', headers, ['名', 'firstname']);
-        
         document.getElementById('confirmedColumnMapping').classList.remove('hidden');
         document.getElementById('skipConfirmedBtn').classList.add('hidden');
-        
         document.getElementById('confirmedUploadArea').dataset.data = JSON.stringify(parsed);
       };
       reader.readAsText(file);
@@ -668,22 +686,18 @@
       const parsed = JSON.parse(document.getElementById('confirmedUploadArea').dataset.data);
       const colLastName = document.getElementById('confirmedColLastName').value;
       const colFirstName = document.getElementById('confirmedColFirstName').value;
-      
       if (!colLastName) {
         alert('姓の列を選択してください');
         return;
       }
-      
       confirmedWinners = parsed.slice(1).map(row => {
         const lastName = row[colLastName] || '';
         const firstName = colFirstName ? (row[colFirstName] || '') : '';
         return firstName ? `${lastName} ${firstName}` : lastName;
       }).filter(n => n);
-      
       duplicateCustomers.forEach(c => {
         c.isConfirmed = confirmedWinners.includes(c.name);
       });
-      
       showSelectionSection();
     });
 
@@ -710,19 +724,18 @@
     function renderCustomers() {
       const search = document.getElementById('searchInput').value.toLowerCase();
       let filtered = duplicateCustomers;
-      
       if (currentFilter === 'confirmed') filtered = filtered.filter(c => c.isConfirmed && !processed.has(c.name));
       else if (currentFilter === 'pending') filtered = filtered.filter(c => !c.isConfirmed && !processed.has(c.name));
       else if (currentFilter === 'processed') filtered = filtered.filter(c => processed.has(c.name));
-      else filtered = filtered.filter(c => !processed.has(c.name)); // 'all' は処理済みを除く
-      
+      else filtered = filtered.filter(c => !processed.has(c.name));
       if (search) filtered = filtered.filter(c => c.name.toLowerCase().includes(search));
-      
+      if (sortByCount) {
+        filtered = [...filtered].sort((a, b) => b.count - a.count);
+      }
       if (filtered.length === 0) {
         document.getElementById('customerList').innerHTML = '<div class="empty-state">該当する顧客が見つかりません</div>';
         return;
       }
-      
       document.getElementById('customerList').innerHTML = filtered.map(customer => {
         const selectedCount = selections[customer.name]?.size || 0;
         const isProcessed = processed.has(customer.name);
@@ -773,13 +786,11 @@
       const unprocessedTotal = duplicateCustomers.length - processedCount;
       let selectedCount = 0;
       Object.values(selections).forEach(set => selectedCount += set.size);
-      
       document.getElementById('statTotal').textContent = unprocessedTotal;
       document.getElementById('statConfirmed').textContent = confirmed;
       document.getElementById('statPending').textContent = pending;
       document.getElementById('statSelected').textContent = selectedCount;
       document.getElementById('statProcessed').textContent = processedCount;
-      
       document.querySelectorAll('.filter-btn').forEach(btn => {
         const filter = btn.dataset.filter;
         let count = unprocessedTotal;
@@ -788,44 +799,34 @@
         else if (filter === 'processed') count = processedCount;
         btn.textContent = `${filter === 'all' ? 'すべて' : filter === 'confirmed' ? '確定済み' : filter === 'pending' ? '未確定' : '処理済み'} (${count})`;
       });
-      
       document.getElementById('exportWarning').classList.toggle('hidden', selectedCount > 0);
     }
 
     // Toggle selection
     document.getElementById('customerList').addEventListener('click', (e) => {
-      // 処理済みボタンのクリック
       const actionBtn = e.target.closest('.process-action-btn');
       if (actionBtn) {
         const customer = actionBtn.dataset.customer;
         const action = actionBtn.dataset.action;
-        
         if (action === 'process') {
           processed.add(customer);
         } else if (action === 'undo') {
           processed.delete(customer);
         }
-        
         renderCustomers();
         updateStats();
         return;
       }
-      
-      // エントリーのクリック
       const entry = e.target.closest('.entry');
       if (!entry) return;
-      
       const customer = entry.dataset.customer;
       const index = parseInt(entry.dataset.index);
-      
       if (!selections[customer]) selections[customer] = new Set();
-      
       if (selections[customer].has(index)) {
         selections[customer].delete(index);
       } else {
         selections[customer].add(index);
       }
-      
       renderCustomers();
       updateStats();
     });
@@ -843,21 +844,76 @@
     // Search
     document.getElementById('searchInput').addEventListener('input', renderCustomers);
 
+    // Sort by count
+    document.getElementById('sortBtn').addEventListener('click', () => {
+      sortByCount = !sortByCount;
+      const btn = document.getElementById('sortBtn');
+      btn.classList.toggle('active', sortByCount);
+      btn.textContent = sortByCount ? '📊 当選数順 ON' : '📊 当選数が多い順';
+      renderCustomers();
+    });
+
+    // Item analysis
+    function analyzeItems() {
+      const itemStats = {};
+      duplicateCustomers.forEach(customer => {
+        customer.entries.forEach(entry => {
+          const itemKey = entry.size ? `${entry.item} (${entry.size})` : entry.item;
+          if (!itemStats[itemKey]) {
+            itemStats[itemKey] = { name: itemKey, count: 0, customers: new Set() };
+          }
+          itemStats[itemKey].count++;
+          itemStats[itemKey].customers.add(customer.name);
+        });
+      });
+      return Object.values(itemStats)
+        .map(item => ({ ...item, uniqueCustomers: item.customers.size }))
+        .sort((a, b) => b.count - a.count);
+    }
+
+    function renderItemAnalysis() {
+      const items = analyzeItems();
+      if (items.length === 0) return;
+      const maxCount = items[0].count;
+      document.getElementById('itemList').innerHTML = items.map((item, idx) => {
+        const rankClass = idx === 0 ? 'gold' : idx === 1 ? 'silver' : idx === 2 ? 'bronze' : 'normal';
+        const barWidth = (item.count / maxCount) * 100;
+        return `
+          <div class="item-row">
+            <div class="item-rank ${rankClass}">${idx + 1}</div>
+            <div class="item-name">${item.name}</div>
+            <div class="item-bar"><div class="item-bar-fill" style="width: ${barWidth}%"></div></div>
+            <div class="item-count">${item.count}件 (${item.uniqueCustomers}人)</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    document.getElementById('toggleItemAnalysis').addEventListener('click', () => {
+      const list = document.getElementById('itemList');
+      const btn = document.getElementById('toggleItemAnalysis');
+      const isHidden = list.classList.contains('hidden');
+      if (isHidden) {
+        renderItemAnalysis();
+        list.classList.remove('hidden');
+        btn.textContent = '非表示';
+      } else {
+        list.classList.add('hidden');
+        btn.textContent = '表示';
+      }
+    });
+
     // Export CSV
     function exportCSV(mode) {
       const rows = [['名前', 'メール', 'アイテム', 'サイズ', '確定当選済み', '選択', '処理済み']];
-      
       duplicateCustomers.forEach(customer => {
         const customerSelections = selections[customer.name] || new Set();
         const isProcessed = processed.has(customer.name);
-        
-        // モードによるフィルタリング
         if (mode === 'selected') {
           if (customerSelections.size === 0) return;
         } else if (mode === 'processed') {
           if (!isProcessed) return;
         }
-        
         customer.entries.forEach((entry, idx) => {
           const isSelected = customerSelections.has(idx);
           if (mode === 'selected' && !isSelected) return;
@@ -872,9 +928,7 @@
           ]);
         });
       });
-      
       const filename = mode === 'selected' ? '当選者_選択分.csv' : mode === 'processed' ? '当選者_処理済み.csv' : '重複顧客_全データ.csv';
-      
       const bom = '\uFEFF';
       const csv = rows.map(row => row.map(cell => `"${(cell || '').replace(/"/g, '""')}"`).join(',')).join('\n');
       const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8' });
