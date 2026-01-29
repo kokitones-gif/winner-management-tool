@@ -249,6 +249,20 @@ cat > index.html << 'ENDOFFILE'
     .item-row {
       display: flex; align-items: center; gap: 12px; padding: 12px;
       background: rgba(51, 65, 85, 0.3); border-radius: 8px;
+      transition: all 0.2s;
+    }
+    .item-row.completed {
+      opacity: 0.5;
+      background: rgba(34, 197, 94, 0.1);
+    }
+    .item-row.completed .item-name {
+      text-decoration: line-through;
+      color: #64748b;
+    }
+    .item-checkbox {
+      width: 20px; height: 20px;
+      accent-color: #22c55e;
+      cursor: pointer;
     }
     .item-rank {
       width: 28px; height: 28px; border-radius: 50%;
@@ -285,6 +299,12 @@ cat > index.html << 'ENDOFFILE'
       cursor: pointer; font-size: 0.8rem; transition: all 0.2s;
     }
     .item-filter-clear:hover { background: rgba(251, 191, 36, 0.5); }
+    
+    .item-stats {
+      display: flex; gap: 10px; margin-bottom: 10px; font-size: 0.85rem; color: #94a3b8;
+    }
+    .item-stats span { padding: 4px 8px; background: rgba(51, 65, 85, 0.3); border-radius: 4px; }
+    .item-stats .done { color: #4ade80; }
     
     .hidden { display: none !important; }
     .process-btn { width: 100%; padding: 14px; margin-top: 20px; }
@@ -422,6 +442,10 @@ cat > index.html << 'ENDOFFILE'
 
       <div class="item-analysis">
         <h3>📦 アイテム別 重複当選者数 <button class="item-analysis-toggle" id="toggleItemAnalysis">表示</button></h3>
+        <div class="item-stats hidden" id="itemStats">
+          <span>全 <strong id="itemTotalCount">0</strong> アイテム</span>
+          <span class="done">✓ 完了 <strong id="itemDoneCount">0</strong></span>
+        </div>
         <div class="item-list hidden" id="itemList"></div>
       </div>
 
@@ -468,6 +492,7 @@ cat > index.html << 'ENDOFFILE'
     let currentFilter = 'all';
     let sortByCount = false;
     let currentItemFilter = null;
+    let completedItems = new Set();
 
     // Parse CSV
     function parseCSV(text) {
@@ -912,11 +937,18 @@ cat > index.html << 'ENDOFFILE'
       const items = analyzeItems();
       if (items.length === 0) return;
       const maxCount = items[0].count;
+      
+      // Update stats
+      document.getElementById('itemTotalCount').textContent = items.length;
+      document.getElementById('itemDoneCount').textContent = completedItems.size;
+      
       document.getElementById('itemList').innerHTML = items.map((item, idx) => {
         const rankClass = idx === 0 ? 'gold' : idx === 1 ? 'silver' : idx === 2 ? 'bronze' : 'normal';
         const barWidth = (item.count / maxCount) * 100;
+        const isCompleted = completedItems.has(item.name);
         return `
-          <div class="item-row">
+          <div class="item-row ${isCompleted ? 'completed' : ''}" data-item="${item.name}">
+            <input type="checkbox" class="item-checkbox" data-item="${item.name}" ${isCompleted ? 'checked' : ''}>
             <div class="item-rank ${rankClass}">${idx + 1}</div>
             <div class="item-name">${item.name}</div>
             <div class="item-bar"><div class="item-bar-fill" style="width: ${barWidth}%"></div></div>
@@ -928,27 +960,45 @@ cat > index.html << 'ENDOFFILE'
 
     document.getElementById('toggleItemAnalysis').addEventListener('click', () => {
       const list = document.getElementById('itemList');
+      const stats = document.getElementById('itemStats');
       const btn = document.getElementById('toggleItemAnalysis');
       const isHidden = list.classList.contains('hidden');
       if (isHidden) {
         renderItemAnalysis();
         list.classList.remove('hidden');
+        stats.classList.remove('hidden');
         btn.textContent = '非表示';
       } else {
         list.classList.add('hidden');
+        stats.classList.add('hidden');
         btn.textContent = '表示';
       }
     });
 
-    // Item filter click
+    // Item list click events
     document.getElementById('itemList').addEventListener('click', (e) => {
+      // チェックボックスクリック
+      const checkbox = e.target.closest('.item-checkbox');
+      if (checkbox) {
+        const itemName = checkbox.dataset.item;
+        if (completedItems.has(itemName)) {
+          completedItems.delete(itemName);
+        } else {
+          completedItems.add(itemName);
+        }
+        renderItemAnalysis();
+        return;
+      }
+      
+      // 件数クリック（フィルター）
       const itemCount = e.target.closest('.item-count');
-      if (!itemCount) return;
-      const itemName = itemCount.dataset.item;
-      currentItemFilter = itemName;
-      document.getElementById('itemFilterName').textContent = itemName;
-      document.getElementById('itemFilterBanner').classList.remove('hidden');
-      renderCustomers();
+      if (itemCount) {
+        const itemName = itemCount.dataset.item;
+        currentItemFilter = itemName;
+        document.getElementById('itemFilterName').textContent = itemName;
+        document.getElementById('itemFilterBanner').classList.remove('hidden');
+        renderCustomers();
+      }
     });
 
     // Clear item filter
